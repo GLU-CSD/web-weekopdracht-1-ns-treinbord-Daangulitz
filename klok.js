@@ -1,21 +1,21 @@
 function updateClock() {
     const now = new Date();
-    
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const seconds = now.getSeconds();
-    
-    const hourDeg = (hours % 12) * 30 + (minutes / 60) * 30; // 360 / 12 = 30 degrees per hour
-    const minuteDeg = minutes * 6 + (seconds / 60) * 6;      // 360 / 60 = 6 degrees per minute
-    const secondDeg = seconds * 6;                           // 360 / 60 = 6 degrees per second
-    
-    document.querySelector('#hour-hand').style.transform = `translateX(-50%) rotate(${hourDeg}deg)`;
-    document.querySelector('#minute-hand').style.transform = `translateX(-50%) rotate(${minuteDeg}deg)`;
-    document.querySelector('#second-hand').style.transform = `translateX(-50%) rotate(${secondDeg}deg)`;
+
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const second = now.getSeconds();
+
+    const hourDeg = (hour % 12) * 30 + minute * 0.5; // 360° / 12 hours
+    const minuteDeg = minute * 6; // 360° / 60 minutes
+    const secondDeg = second * 6; // 360° / 60 seconds
+
+    document.getElementById('hour').style.transform = `rotate(${hourDeg}deg)`;
+    document.getElementById('minute').style.transform = `rotate(${minuteDeg}deg)`;
+    document.getElementById('second').style.transform = `rotate(${secondDeg}deg)`;
 }
 
 // Update the clock every second
 setInterval(updateClock, 1000);
 
-// Initialize the clock immediately on load
+// Initialize clock
 updateClock();
