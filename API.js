@@ -1,7 +1,7 @@
 const apiUrl = 'https://gateway.apiportal.ns.nl/reisinformatie-api/api/v2/arrivals?station=UT';
 
 // Set your desired platform (e.g., "12")
-const specificPlatform = '21';
+const specificPlatform = '20';
 
 // Function to fetch train data and update the board
 function fetchTrainData() {
