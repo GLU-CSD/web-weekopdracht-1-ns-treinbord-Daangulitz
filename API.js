@@ -1,57 +1,105 @@
-const apiUrl = 'https://gateway.apiportal.ns.nl/reisinformatie-api/api/v2/arrivals?station=UT';
+const apiKey = "dff5cb85045446f9861e81fdda13a5d2"; // API key
+const station = "UT"; // Stationcode 
+const platform = "11"; // Specifiek perron 
+const nsApiUrl = `https://gateway.apiportal.ns.nl/reisinformatie-api/api/v2/departures?station=${station}`; // URL voor de API-oproep
 
-// Set your desired platform (e.g., "12")
-const specificPlatform = '20';
+let digital; 
 
-// Function to fetch train data and update the board
-function fetchTrainData() {
-    fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-            'Cache-Control': 'no-cache',
-            'Ocp-Apim-Subscription-Key': '6efe8b15f76e49c8b019e7639be187e1' // Replace with your actual API key
-        }
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Filter trains for the specific platform
-            const filteredTrains = data.payload.arrivals.filter(train => train.plannedTrack === specificPlatform);
-
-            if (filteredTrains.length > 0) {
-                const nextTrain = filteredTrains[0]; // Get only the first train
-
-                // Destination
-                document.getElementById('WaarNaartoeHoofd').innerText = nextTrain.origin;
-
-                // Platform
-                document.getElementById('Platform').textContent = specificPlatform;
-
-                // Calculate time until departure in minutes
-                const departureTime = new Date(nextTrain.plannedDateTime);
-                const currentTime = new Date();
-                const timeDiff = Math.ceil((departureTime - currentTime) / 60000); // Difference in minutes
-
-                document.getElementById('TimeTillDeparture').innerText = timeDiff > 0 ? timeDiff : '0';
-            } else {
-                // If no trains are available for the specified platform
-                document.getElementById('WaarNaartoeHoofd').innerText = 'Geen trein beschikbaar';
-                document.getElementById('Platform').innerText = specificPlatform;
-                document.getElementById('TimeTillDeparture').innerText = '--';
-                document.getElementById('TreinStyle').textContent = nextTrain.trainCategory
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching train data:', error);
+// Functie om vertrektijden op te halen van de NS API
+async function fetchDepartures() {
+    try {
+        const response = await fetch(nsApiUrl, {
+            headers: {
+                "Ocp-Apim-Subscription-Key": apiKey, // Stelt de benodigde API-sleutel in als header
+            },
         });
+
+        if (!response.ok) {
+            throw new Error(`API-oproep mislukt: ${response.statusText}`); 
+        }
+
+        const data = await response.json();
+        displayDepartures(data.payload.departures); // Toon de vertrektijden op het bord
+    } catch (error) {
+        console.error("Fout bij het ophalen van vertrektijden:", error); // Logt eventuele fouten naar de console
+    }
 }
 
-// Fetch train data every 30 seconds
-setInterval(fetchTrainData, 30000);
+// Functie om de opgehaalde vertrektijden te tonen
+function displayDepartures(departures) {
+    const filteredDepartures = departures.filter(
+        (departure) => departure.plannedTrack === platform // Filter alleen treinen die vanaf het juiste perron vertrekken
+    );
 
-// Initial fetch
-fetchTrainData();
+    if (filteredDepartures.length > 0) {
+        const firstDeparture = filteredDepartures[0]; // Eerste vertrekkende trein
+        const nextDeparture = filteredDepartures[1]; // Volgende vertrekkende trein (indien beschikbaar)
+
+        const now = new Date();
+        const departureTime = new Date(firstDeparture.actualDateTime); // Werkelijke vertrektijd van de trein
+        const departureTimeFormatted = departureTime.toTimeString().split(" ")[0]; // Formatteert de tijd
+
+        const minutesUntilArrival = Math.max(
+            Math.ceil((departureTime - now) / (1000 * 60)), // Bereken minuten tot vertrek
+            0
+        );
+
+        const trainTypeMapping = {
+            SPR: "Sprinter", // Vertaling voor Sprinter
+            IC: "Intercity", // Vertaling voor Intercity
+        };
+        const trainTypeFull =
+            trainTypeMapping[firstDeparture.trainCategory] || firstDeparture.trainCategory; // Haal het type trein op
+
+        const routeStations = firstDeparture.routeStations || []; // Haal de tussenstations op
+        const viaText =
+            routeStations.length > 0
+                ? `via ${routeStations.slice(0, -1).map(station => station.mediumName).join(", ")} en ${routeStations.slice(-1)[0].mediumName}`
+                : ""; // maakt een weergaven van tussen stations
+        if (digital === true) { // Controleer of de tijd digitaal moet worden weergegeven
+            document.getElementById("TimeTillDeparture").textContent = departureTimeFormatted.split(" ")[0].slice(0, -3); // Toon tijd als "HH:MM"
+            document.getElementById("Minuten").textContent = ''; // Geen minuten tekst nodig
+        } else {
+            document.getElementById("TimeTillDeparture").textContent = minutesUntilArrival; // Toon minuten tot vertrek
+            document.getElementById("Minuten").textContent = minutesUntilArrival <= 1 ? "minuut" : "minuten"; // Meervoud/minuut aanpassen
+        }
+        document.getElementById("TreinStyle").textContent = trainTypeFull; // Toon het type trein
+        document.getElementById("WaarNaartoeHoofd").textContent = firstDeparture.direction; // Toon de eindbestemming van de trein
+        document.getElementById("OverigStations").textContent = viaText; // Toon de tussenstations
+        document.getElementById("Platform").textContent = platform; // Toon het perronnummer
+
+        if (nextDeparture) { // Controleer of er een volgende trein beschikbaar is
+            const nextDepartureTime = new Date(nextDeparture.actualDateTime);
+            const nextDepartureTimeFormatted = nextDepartureTime.toTimeString().split(" ")[0].slice(0, -3); // Formatteer tijd als "HH:MM"
+
+            document.getElementById("NextTrain").textContent =
+                `Hierna/next: ${nextDepartureTimeFormatted} ${nextDeparture.direction}`; // Toon de volgende trein
+        } else {
+            document.getElementById("NextTrain").textContent = "Geen aankomende treinen"; // Geen volgende trein beschikbaar
+        }
+    } else {
+        // Als er geen treinen beschikbaar zijn dan laat hij dat zien
+        document.getElementById("TimeTillDeparture").textContent = "--";
+        document.getElementById("Minuten").textContent = "minuten";
+        document.getElementById("TreinStyle").textContent = "Geen gegevens";
+        document.getElementById("WaarNaartoeHoofd").textContent = "Geen gegevens";
+        document.getElementById("OverigStations").textContent = "";
+    }
+}
+
+// Functie om te wisselen tussen digitale tijdweergave en minuten
+function TimeSwap() {
+    digital = !digital;
+    fetchDepartures(); // Haal de vertrektijden opnieuw op om de wijziging te tonen
+}
+
+// Functie om het bord te initialiseren
+function initBoard() {
+    fetchDepartures(); 
+    TimeSwap(); 
+    setInterval(fetchDepartures, 30000); // haalt elke 30 seconde de departures op
+    setInterval(TimeSwap, 5000);
+}
+
+// Wacht tot de pagina volledig geladen is, en start dan het bord
+document.addEventListener("DOMContentLoaded", initBoard);
